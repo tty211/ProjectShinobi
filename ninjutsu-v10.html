@@ -1,0 +1,1543 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>忍术印术识别</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Serif SC', serif;
+    background: #0a0a0f url('background/background.png') center center / cover no-repeat fixed;
+    color: #e8d5a3;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    overflow: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, #1a0a0022 0%, transparent 70%),
+                repeating-linear-gradient(0deg, transparent, transparent 40px, #ffffff03 40px, #ffffff03 41px),
+                repeating-linear-gradient(90deg, transparent, transparent 40px, #ffffff03 40px, #ffffff03 41px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+    letter-spacing: 6px;
+    color: #ff6b00;
+    text-shadow: 0 0 20px #ff6b0088, 0 0 40px #ff6b0044;
+    margin-bottom: 4px;
+    position: relative;
+    z-index: 1;
+    text-align: center;
+  }
+  .subtitle {
+    font-size: 0.7rem;
+    color: #7a6a4a;
+    letter-spacing: 3px;
+    margin-bottom: 12px;
+    position: relative;
+    z-index: 1;
+    text-align: center;
+  }
+
+  .layout {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    width: 100%;
+    max-height: calc(100vh - 120px);
+  }
+
+  .cam-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    position: fixed;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 90;
+  }
+
+  #canvas {
+    width: 320px;
+    height: 240px;
+    border-radius: 4px;
+    border: 1px solid #ff6b0066;
+    box-shadow: 0 0 24px #ff6b0033, inset 0 0 20px #00000088;
+    background: #0d0d15;
+    display: none;
+  }
+
+  .detect-box {
+    width: 200px;
+    background: #0d0d15;
+    border: 1px solid #3a2a1a;
+    border-radius: 4px;
+    padding: 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  #currentGesture {
+    font-size: 0.9rem;
+    color: #ff9944;
+    font-weight: bold;
+    letter-spacing: 2px;
+  }
+  #confidence { font-size: 0.7rem; color: #5a4a3a; }
+
+  #startBtn {
+    padding: 8px 24px;
+    background: linear-gradient(135deg, #cc4400, #ff6b00);
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    font-size: 0.85rem;
+    font-family: inherit;
+    cursor: pointer;
+    letter-spacing: 3px;
+    box-shadow: 0 0 16px #ff6b0066;
+    transition: all 0.2s;
+  }
+  #startBtn:hover { box-shadow: 0 0 28px #ff6b00aa; transform: scale(1.03); }
+  #startBtn:disabled { opacity: 0.5; cursor: default; transform: none; }
+  #statusMsg { font-size: 0.7rem; color: #5a4a3a; letter-spacing: 1px; }
+
+  .sequence-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    min-width: 280px;
+    max-width: 320px;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+    position: fixed;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 90;
+  }
+
+  .jutsu-name {
+    font-size: 1rem;
+    color: #ff6b00;
+    letter-spacing: 4px;
+    text-shadow: 0 0 12px #ff6b0066;
+    text-align: center;
+  }
+
+  .seq-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .seq-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: #0d0d15;
+    border: 1px solid #2a1a0a;
+    border-radius: 3px;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .seq-item::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: #2a1a0a;
+    transition: background 0.3s;
+  }
+  .seq-item.done { border-color: #2a4a2a; background: #0a150a; }
+  .seq-item.done::before { background: #44aa44; }
+  .seq-item.current { border-color: #ff6b0088; background: #1a0d00; animation: pulse-border 1s infinite; }
+  .seq-item.current::before { background: #ff6b00; }
+  .seq-item.pending { opacity: 0.4; }
+
+  @keyframes pulse-border {
+    0%, 100% { box-shadow: 0 0 8px #ff6b0033; }
+    50% { box-shadow: 0 0 20px #ff6b0088; }
+  }
+
+  .seq-num { font-size: 0.7rem; color: #5a4a3a; width: 16px; text-align: center; }
+  .seq-kanji { font-size: 1.2rem; color: #e8d5a3; width: 24px; text-align: center; }
+  .seq-info { display: flex; flex-direction: column; }
+  .seq-name { font-size: 0.8rem; letter-spacing: 1px; }
+  .seq-hint { font-size: 0.65rem; color: #5a4a3a; }
+  .seq-check { margin-left: auto; font-size: 0.9rem; color: #44aa44; opacity: 0; transition: opacity 0.3s; }
+  .seq-item.done .seq-check { opacity: 1; }
+
+  .progress-bar-wrap { width: 100%; height: 3px; background: #1a1a1a; border-radius: 2px; overflow: hidden; }
+  #progressBar {
+    height: 100%;
+    background: linear-gradient(90deg, #cc4400, #ff9944);
+    width: 0%;
+    transition: width 0.4s ease;
+    box-shadow: 0 0 8px #ff6b00;
+  }
+
+  #rerollBtn {
+    padding: 5px 16px;
+    background: transparent;
+    color: #7a6a4a;
+    border: 1px solid #3a2a1a;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    font-family: inherit;
+    cursor: pointer;
+    letter-spacing: 2px;
+    transition: all 0.2s;
+  }
+  #rerollBtn:hover { color: #e8d5a3; border-color: #7a6a4a; }
+
+  .guide-panel { display: flex; flex-direction: column; gap: 8px; }
+  .guide-title { font-size: 0.75rem; color: #5a4a3a; letter-spacing: 3px; text-align: center; margin-bottom: 4px; }
+  .guide-card {
+    display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+    background: #0d0d15; border: 1px solid #1a1a2a; border-radius: 3px;
+    width: 190px; transition: all 0.25s; cursor: pointer;
+  }
+  .guide-card:hover { border-color: #ff6b0044; background: #130d00; transform: translateX(3px); }
+  .guide-card.lit { border-color: #ff6b0066; background: #1a0d00; box-shadow: 0 0 10px #ff6b0033; }
+
+  #sealModal {
+    position: fixed; inset: 0; z-index: 200; display: none;
+    align-items: center; justify-content: center;
+    background: #000000bb; backdrop-filter: blur(4px);
+  }
+  #sealModal.show { display: flex; }
+  .modal-box {
+    background: #0d0d15; border: 1px solid #ff6b0055; border-radius: 6px;
+    box-shadow: 0 0 40px #ff6b0033, 0 0 80px #00000088;
+    padding: 28px 28px 22px; display: flex; flex-direction: column;
+    align-items: center; gap: 16px; max-width: 360px; width: 90%;
+    position: relative; animation: modal-in 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  @keyframes modal-in {
+    0% { transform: scale(0.85); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .modal-header { display: flex; align-items: center; gap: 12px; width: 100%; }
+  .modal-kanji { font-size: 2.4rem; color: #ff9944; text-shadow: 0 0 16px #ff6b0066; line-height: 1; }
+  .modal-title-group { display: flex; flex-direction: column; }
+  .modal-name { font-size: 1.1rem; letter-spacing: 2px; color: #e8d5a3; }
+  .modal-en { font-size: 0.78rem; color: #7a6a4a; letter-spacing: 2px; margin-top: 2px; }
+  .modal-hint { font-size: 0.72rem; color: #5a4a3a; letter-spacing: 1px; }
+  .modal-img-wrap {
+    width: 100%; aspect-ratio: 1/1; background: #060610; border: none;
+    border-radius: 8px; overflow: hidden; display: flex;
+    align-items: center; justify-content: center;
+  }
+  .modal-img-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .modal-img-wrap .no-img { font-size: 0.78rem; color: #3a2a1a; letter-spacing: 2px; }
+  .modal-divider { width: 100%; height: 1px; background: linear-gradient(90deg, transparent, #ff6b0033, transparent); }
+  .modal-close {
+    padding: 6px 24px; background: transparent; color: #7a6a4a;
+    border: 1px solid #3a2a1a; border-radius: 3px; font-size: 0.82rem;
+    font-family: inherit; cursor: pointer; letter-spacing: 3px; transition: all 0.2s;
+  }
+  .modal-close:hover { color: #e8d5a3; border-color: #ff6b0066; }
+  .guide-kanji { font-size: 1.6rem; width: 32px; text-align: center; }
+  .guide-info { display: flex; flex-direction: column; }
+  .guide-name { font-size: 0.85rem; letter-spacing: 1px; }
+  .guide-sub { font-size: 0.68rem; color: #5a4a3a; }
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #00000000;
+  pointer-events: none;
+}
+
+#overlay.show {
+  display: flex;
+  pointer-events: auto;
+}
+  #overlayBg {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, #ff6b0022 0%, #00000000 70%);
+    animation: bg-flash 0.5s ease-out;
+  }
+  @keyframes bg-flash {
+    0% { background: radial-gradient(ellipse at center, #ff6b00cc 0%, #ff000044 100%); }
+    100% { background: radial-gradient(ellipse at center, #ff6b0022 0%, #00000000 70%); }
+  }
+  #jutsuTitle {
+    position: relative; z-index: 2; font-size: 3.5rem; color: #ff6b00;
+    text-shadow: 0 0 40px #ff6b00, 0 0 80px #ff000088, 0 0 120px #ff000044;
+    letter-spacing: 8px; animation: jutsu-appear 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    text-align: center; padding: 0 20px;
+  }
+  @keyframes jutsu-appear {
+    0% { transform: scale(0.2); opacity: 0; filter: blur(20px); }
+    100% { transform: scale(1); opacity: 1; filter: blur(0); }
+  }
+  #jutsuSub {
+    position: relative; z-index: 2; font-size: 1rem; color: #ffcc88;
+    letter-spacing: 6px; margin-top: 12px; animation: fade-up 0.8s 0.3s both;
+  }
+  @keyframes fade-up {
+    0% { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  #particleCanvas { position: fixed; inset: 0; z-index: 101; pointer-events: none; display: none; }
+  #particleCanvas.show { display: block; }
+
+  #serialBtn {
+    padding: 5px 16px; background: transparent; color: #44aa88;
+    border: 1px solid #2a4a3a; border-radius: 3px; font-size: 0.7rem;
+    font-family: inherit; cursor: pointer; letter-spacing: 2px; transition: all 0.2s;
+  }
+  #serialBtn:hover { color: #aaffcc; border-color: #44aa88; }
+  #serialBtn.connected { color: #44ffaa; border-color: #44ffaa; box-shadow: 0 0 8px #44ffaa44; }
+
+  #sealStackPanel {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 8px; transform: translateY(-40px);
+  }
+  #currentSealPanel {
+    display: flex; justify-content: center; align-items: center;
+    background: #0d0d15; border: 1px solid #ff6b0055; border-radius: 6px;
+    box-shadow: 0 0 30px #ff6b0033; padding: 0; opacity: 0;
+    pointer-events: none; transition: opacity 0.3s; width: 280px; height: 280px;
+  }
+  #currentSealPanel.visible { opacity: 1; pointer-events: auto; }
+  #currentSealPanel .modal-img-wrap { width: 280px; height: 280px; flex-shrink: 0; }
+
+  #nextSealsPanel { display: contents; }
+  .next-seal-card {
+    display: flex; justify-content: center; align-items: center;
+    background: #0d0d15; border: 1px solid #3a2a1a; border-radius: 4px;
+    padding: 0; transition: all 0.3s;
+  }
+  .next-seal-card.first { border-color: #ff6b0033; opacity: 0.85; width: 160px; height: 160px; }
+  .next-seal-card.second { opacity: 0.5; width: 120px; height: 120px; }
+  .next-seal-card.first .modal-img-wrap { width: 160px; height: 160px; flex-shrink: 0; }
+  .next-seal-card.second .modal-img-wrap { width: 120px; height: 120px; flex-shrink: 0; }
+
+  .next-seal-card.promote-first { animation: promote-first 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+  .next-seal-card.promote-second { animation: promote-second 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+  @keyframes promote-first {
+    from { transform: scale(1) translateY(0); opacity: 0.85; }
+    to   { transform: scale(1.75) translateY(80px); opacity: 1; }
+  }
+  @keyframes promote-second {
+    from { transform: scale(1) translateY(0); opacity: 0.5; }
+    to   { transform: scale(1.33) translateY(60px); opacity: 0.85; }
+  }
+
+  .flash-ring {
+    position: fixed; border-radius: 50%; border: 3px solid #ff9944;
+    animation: ring-out 0.5s ease-out forwards; pointer-events: none; z-index: 50;
+  }
+  @keyframes ring-out {
+    0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+  }
+  #songPicker {
+    position: fixed;
+    bottom: 70px;
+    left: 24px;
+    z-index: 90;
+    display: flex;
+    gap: 6px;
+  }
+  /* ── Mode toggle (3 buttons) ── */
+  #modeToggle {
+    position: fixed; bottom: 24px; left: 24px; z-index: 90;
+    display: flex; gap: 0; border: 1px solid #3a2a1a; border-radius: 4px; overflow: hidden;
+  }
+  .mode-btn {
+    padding: 8px 18px; background: transparent; color: #5a4a3a; border: none;
+    font-size: 0.78rem; font-family: inherit; cursor: pointer; letter-spacing: 2px; transition: all 0.2s;
+  }
+  .mode-btn + .mode-btn { border-left: 1px solid #3a2a1a; }
+  .mode-btn.active { background: #1a0d00; color: #ff9944; }
+  .mode-btn:hover:not(.active) { color: #e8d5a3; background: #0d0d15; }
+
+  /* ── Challenge timer ── */
+  #challengeTimerWrap {
+    width: 400px; display: none; flex-direction: column; gap: 6px;
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    z-index: 90; align-items: center;
+  }
+  #challengeTimerWrap.show { display: flex; }
+  .timer-label { font-size: 0.8rem; color: #5a4a3a; letter-spacing: 1px; text-align: center; }
+  #timerCount { color: #ff9944; }
+  .timer-bar-bg { width: 100%; height: 12px; background: #1a1a1a; border-radius: 6px; overflow: hidden; }
+  #timerBar {
+    height: 100%; width: 100%;
+    background: linear-gradient(90deg, #ff2200, #ff9944);
+    border-radius: 6px; transition: width 0.1s linear, background 0.5s;
+    box-shadow: 0 0 8px #ff440088;
+  }
+  #timerBar.urgent { background: linear-gradient(90deg, #ff0000, #ff4400); box-shadow: 0 0 12px #ff000088; }
+
+  /* ══════════════════════════════════════════
+     音楽モード — STYLES
+  ══════════════════════════════════════════ */
+
+  /* 3-2-1 countdown overlay */
+  #musicCountdownOverlay {
+    position: fixed; inset: 0; z-index: 300; display: none;
+    align-items: center; justify-content: center;
+    background: #00000099; backdrop-filter: blur(6px); pointer-events: none;
+  }
+  #musicCountdownOverlay.show { display: flex; }
+  #musicCountdownNum {
+    font-size: 8rem; color: #ff9944;
+    text-shadow: 0 0 60px #ff6b00, 0 0 120px #ff440088;
+    letter-spacing: 4px;
+  }
+  @keyframes count-pop {
+    0%   { transform: scale(2.2); opacity: 0; }
+    50%  { transform: scale(0.9); opacity: 1; }
+    100% { transform: scale(1);   opacity: 1; }
+  }
+
+  /* Music bar HUD at bottom center */
+  #musicHUD {
+    display: none; flex-direction: column; align-items: center; gap: 6px;
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    z-index: 90; width: 480px;
+  }
+  #musicHUD.show { display: flex; }
+  .music-hud-top {
+    display: flex; align-items: center; justify-content: space-between; width: 100%;
+  }
+  #musicBarLabel { font-size: 0.78rem; color: #5a4a3a; letter-spacing: 2px; }
+  #musicBeatDots { display: flex; gap: 8px; }
+  .beat-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #2a2a2a; border: 1px solid #3a2a1a;
+    transition: background 0.08s, box-shadow 0.08s;
+  }
+  .beat-dot.active { background: #ff9944; box-shadow: 0 0 10px #ff6b00aa; }
+  #musicScoreLabel { font-size: 0.78rem; color: #5a4a3a; letter-spacing: 2px; }
+  #musicScore { color: #ff9944; }
+  .music-bar-bg { width: 100%; height: 6px; background: #1a1a1a; border-radius: 3px; overflow: hidden; }
+  #musicBarProgress {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #4488ff, #aaddff);
+    border-radius: 3px; box-shadow: 0 0 8px #4488ffaa;
+  }
+  #musicPhaseLabel { font-size: 0.72rem; color: #5a4a3a; letter-spacing: 3px; text-align: center; }
+
+  /* Rest overlay — shows "休息" over the center panel */
+  #musicRestOverlay {
+    position: fixed; inset: 0; z-index: 88; display: none;
+    align-items: center; justify-content: center; pointer-events: none;
+  }
+  #musicRestOverlay.show { display: flex; }
+  #musicRestOverlay .rest-box {
+    background: #0d0d15cc; border: 1px solid #3a2a1a; border-radius: 8px;
+    padding: 24px 40px; text-align: center;
+  }
+  #musicRestOverlay .rest-kanji {
+    font-size: 2.2rem; color: #5a4a3a; letter-spacing: 6px;
+    text-shadow: 0 0 16px #3a2a1a44;
+  }
+  #musicRestOverlay .rest-sub {
+    font-size: 0.72rem; color: #3a2a1a; letter-spacing: 3px; margin-top: 6px;
+  }
+  /* Bar timeout flash */
+  #musicTimeoutFlash {
+    position: fixed; inset: 0; z-index: 95; pointer-events: none;
+    background: #ff000000; display: none;
+  }
+  #musicTimeoutFlash.flash { display: block; animation: timeout-flash 0.4s ease-out forwards; }
+  @keyframes timeout-flash {
+    0%   { background: #ff000044; }
+    100% { background: #ff000000; }
+  }
+</style>
+</head>
+<body>
+
+<h1>忍　術　印　術</h1>
+<div class="subtitle">— NINJUTSU HAND SEAL SYSTEM —</div>
+
+<div class="layout">
+  <div id="sealStackPanel">
+    <div id="nextSealsPanel"></div>
+    <div id="currentSealPanel">
+      <div class="modal-img-wrap" id="panelImgWrap"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 右：印术序列 -->
+<div class="sequence-panel">
+  <div class="jutsu-name" id="jutsuName">— 选择忍术 —</div>
+  <div class="progress-bar-wrap"><div id="progressBar"></div></div>
+  <div class="seq-list" id="seqList"></div>
+  <button id="rerollBtn" onclick="pickJutsu()">换一个忍术</button>
+</div>
+
+<!-- 控制面板 -->
+<div class="cam-panel">
+  <canvas id="canvas" width="320" height="240"></canvas>
+  <div class="detect-box">
+    <span id="currentGesture">— 未检测 —</span>
+    <span id="confidence"></span>
+  </div>
+  <button id="startBtn" onclick="init()">启　动</button>
+  <button id="serialBtn" onclick="connectSerial()">连接串口</button>
+  <div id="statusMsg">请先启动 server.py，再点启动</div>
+</div>
+
+<!-- Challenge timer -->
+<div id="challengeTimerWrap">
+  <div class="timer-label">挑战计时</div>
+  <div class="timer-bar-bg"><div id="timerBar"></div></div>
+</div>
+
+<!-- Mode toggle — 3 buttons -->
+<div id="modeToggle">
+  <button class="mode-btn active" id="btnPractice"  onclick="setMode('practice')">练　习</button>
+  <button class="mode-btn"        id="btnChallenge" onclick="setMode('challenge')">挑　战</button>
+  <button class="mode-btn"        id="btnMusic"     onclick="setMode('music')">音　楽</button>
+</div>
+
+<div id="songPicker">
+  <button class="mode-btn" id="songBtn0" onclick="selectSong(0)">踊</button>
+  <button class="mode-btn" id="songBtn1" onclick="selectSong(1)">紅蓮華</button>
+  <button class="mode-btn" id="songBtn2" onclick="selectSong(2)">il vento d'oro</button>
+</div>
+<!-- ══ 音楽モード HTML ══ -->
+<div id="musicCountdownOverlay">
+  <span id="musicCountdownNum">3</span>
+</div>
+
+<!-- Rest overlay (shown during 2-bar rest) -->
+<div id="musicRestOverlay">
+  <div class="rest-box">
+    <div class="rest-kanji">休　息</div>
+    <div class="rest-sub" id="musicRestSub">等待下一组印术</div>
+  </div>
+</div>
+
+<!-- Red flash on bar timeout -->
+<div id="musicTimeoutFlash"></div>
+
+<!-- Music bar HUD -->
+<div id="musicHUD">
+  <div class="music-hud-top">
+    <span id="musicBarLabel">小节 <span id="musicBarNum">0</span></span>
+    <div id="musicBeatDots">
+      <div class="beat-dot" id="beat0"></div>
+      <div class="beat-dot" id="beat1"></div>
+      <div class="beat-dot" id="beat2"></div>
+      <div class="beat-dot" id="beat3"></div>
+    </div>
+    <span id="musicScoreLabel">得分 <span id="musicScore">0</span></span>
+  </div>
+  <div class="music-bar-bg"><div id="musicBarProgress"></div></div>
+  <div id="musicPhaseLabel">— 等待启动 —</div>
+</div>
+
+<!-- Hidden audio -->
+<audio id="musicAudio" preload="auto"></audio>
+
+<!-- 图鉴弹窗 -->
+<div id="sealModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-kanji" id="modalKanji"></span>
+      <div class="modal-title-group">
+        <span class="modal-name" id="modalName"></span>
+        <span class="modal-en" id="modalEn"></span>
+      </div>
+    </div>
+    <div class="modal-divider"></div>
+    <div class="modal-img-wrap" id="modalImgWrap"></div>
+    <button class="modal-close" onclick="closeSealModal()">关　闭</button>
+  </div>
+</div>
+
+<!-- 成功特效 -->
+<div id="overlay">
+  <div id="overlayBg"></div>
+  <div id="jutsuTitle"></div>
+  <div id="jutsuSub"></div>
+</div>
+<canvas id="particleCanvas"></canvas>
+
+<script>
+// Unlock audio context on first user click (required by browser autoplay policy)
+let audioUnlocked = false;
+document.addEventListener('click', () => {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  const silence = new Audio();
+  silence.play().catch(() => {});
+}, { once: true });
+// ═══════════════════════════════════════════
+//  配置区
+// ═══════════════════════════════════════════
+const WS_URL      = "ws://localhost:8000/ws";
+const THRESHOLD   = 0.4;
+const HOLD_FRAMES = 2;
+
+// *** Change this to your actual music filename ***
+const MUSICFILES = [
+  { name: '踊', file: 'music/128bpm踊.mp3', bpm: 128 },
+  { name: '紅蓮華', file: 'music/135bpm紅蓮華.mp3', bpm: 135 },
+  { name: "il vento d'oro", file: "music/136bpmil vento d'oro.mp3", bpm: 136 }
+];
+
+let selectedSongIndex = Math.floor(Math.random() * MUSICFILES.length);
+function updateSongButtons() {
+  for (let i = 0; i < MUSICFILES.length; i++) {
+    const btn = document.getElementById(`songBtn${i}`);
+    if (btn) btn.classList.toggle('active', i === selectedSongIndex);
+  }
+}
+
+function selectSong(index) {
+  selectedSongIndex = index;
+  updateSongButtons();
+
+  if (musicMode && musicPlaying) {
+    stopMusicMode();
+    startMusicMode();
+  }
+}
+// ═══════════════════════════════════════════
+//  手势 & 印術定义
+// ═══════════════════════════════════════════
+const GESTURE_MAP = {
+  "Zi":"子","Chou":"丑","Yin":"寅","Mou":"卯",
+  "Chen":"辰","Si":"巳","Wu":"午","Wei":"未",
+  "Shen":"申","You":"酉","Xu":"戌","Hai":"亥"
+};
+
+const SEALS = [
+  { name:"子", kanji:"子", en:"Ne",      hint:"鼠印", img:"images/seals/ne.png" },
+  { name:"丑", kanji:"丑", en:"Ushi",    hint:"牛印", img:"images/seals/ushi.png" },
+  { name:"寅", kanji:"寅", en:"Tora",    hint:"虎印", img:"images/seals/tora.png" },
+  { name:"卯", kanji:"卯", en:"U",       hint:"兔印", img:"images/seals/u.png" },
+  { name:"辰", kanji:"辰", en:"Tatsu",   hint:"龙印", img:"images/seals/tatsu.png" },
+  { name:"巳", kanji:"巳", en:"Mi",      hint:"蛇印", img:"images/seals/mi.png" },
+  { name:"午", kanji:"午", en:"Uma",     hint:"马印", img:"images/seals/uma.png" },
+  { name:"未", kanji:"未", en:"Hitsuji", hint:"羊印", img:"images/seals/hitsuji.png" },
+  { name:"申", kanji:"申", en:"Saru",    hint:"猴印", img:"images/seals/saru.png" },
+  { name:"酉", kanji:"酉", en:"Tori",    hint:"鸡印", img:"images/seals/tori.png" },
+  { name:"戌", kanji:"戌", en:"Inu",     hint:"狗印", img:"images/seals/inu.png" },
+  { name:"亥", kanji:"亥", en:"I",       hint:"猪印", img:"images/seals/i.png" },
+];
+
+const JUTSUS = [
+  { name:"火遁·豪火球之术", seals:["子","午","寅","卯","巳"], color:"#ff4400" },
+  { name:"雷遁·千鸟",       seals:["丑","寅","辰","巳","子"], color:"#88aaff" },
+  { name:"土遁·土流壁",     seals:["亥","寅","丑","申","未"], color:"#aa8844" },
+  { name:"水遁·水龙弹",     seals:["卯","辰","午","未","酉"], color:"#44aaff" },
+  { name:"风遁·螺旋丸",     seals:["戌","酉","申","午","寅"], color:"#aaffaa" },
+];
+
+// ═══════════════════════════════════════════
+//  全局状态
+// ═══════════════════════════════════════════
+let ws = null, running = false;
+let currentJutsu = null;
+let step = 0, holdCount = 0, lastDetected = "";
+let celebrating = false;
+
+let challengeMode = false, challengeTimer = null, challengeRemaining = 0;
+const CHALLENGE_SECONDS = 10;
+
+let musicMode = false;
+
+// ═══════════════════════════════════════════
+//  模式切换
+// ═══════════════════════════════════════════
+function setMode(mode) {
+  challengeMode = false;
+  stopChallengeTimer();
+  document.getElementById('challengeTimerWrap').classList.remove('show');
+
+  if (musicMode) stopMusicMode();
+  musicMode = false;
+
+  celebrating = false;
+  musicRoundPending = false;
+  musicSealActive = false;
+  musicSealHit = false;
+  musicHoldCount = 0;
+  musicLastDetected = '';
+  document.getElementById('overlay').classList.remove('show');
+  stopParticles();
+
+  document.getElementById('btnPractice').classList.remove('active');
+  document.getElementById('btnChallenge').classList.remove('active');
+  document.getElementById('btnMusic').classList.remove('active');
+
+  if (mode === 'challenge') {
+    challengeMode = true;
+    document.getElementById('btnChallenge').classList.add('active');
+    document.getElementById('challengeTimerWrap').classList.add('show');
+
+    if (!currentJutsu || step >= currentJutsu.seals.length) {
+      pickJutsu();
+    } else {
+      updateSequenceUI();
+    }
+
+    if (running) startChallengeTimer();
+  } else if (mode === 'music') {
+    musicMode = true;
+    document.getElementById('btnMusic').classList.add('active');
+    if (running) startMusicMode();
+  } else {
+    document.getElementById('btnPractice').classList.add('active');
+
+    if (!currentJutsu || step >= currentJutsu.seals.length) {
+      pickJutsu();
+    } else {
+      updateSequenceUI();
+    }
+  }
+}
+// ═══════════════════════════════════════════
+//  挑战模式计时
+// ═══════════════════════════════════════════
+function startChallengeTimer() {
+  stopChallengeTimer();
+  challengeRemaining = CHALLENGE_SECONDS * 10;
+  updateTimerUI();
+  challengeTimer = setInterval(() => {
+    if (celebrating) return;
+    challengeRemaining--;
+    updateTimerUI();
+    if (challengeRemaining <= 0) { stopChallengeTimer(); onChallengeTimeout(); }
+  }, 100);
+}
+function stopChallengeTimer() { clearInterval(challengeTimer); challengeTimer = null; }
+function updateTimerUI() {
+  const pct = (challengeRemaining / (CHALLENGE_SECONDS * 10)) * 100;
+  const bar = document.getElementById('timerBar');
+  bar.style.width = pct + '%';
+  bar.classList.toggle('urgent', challengeRemaining <= 30);
+}
+function onChallengeTimeout() {
+  const canvas = document.getElementById('canvas');
+  canvas.style.borderColor = '#ff0000';
+  canvas.style.boxShadow   = '0 0 32px #ff000088';
+  setTimeout(() => {
+    canvas.style.borderColor = '';
+    canvas.style.boxShadow   = '';
+    step = 0; holdCount = 0; lastDetected = '';
+    renderSequence();
+    startChallengeTimer();
+  }, 600);
+}
+
+// ═══════════════════════════════════════════
+//  选择忍术
+// ═══════════════════════════════════════════
+function pickJutsu() {
+  if (celebrating) return;
+  currentJutsu = JUTSUS[Math.floor(Math.random() * JUTSUS.length)];
+  step = 0; holdCount = 0; lastDetected = "";
+  renderSequence();
+}
+
+function renderSequence() {
+  const seqList = document.getElementById("seqList");
+  document.getElementById("jutsuName").textContent  = currentJutsu.name;
+  document.getElementById("jutsuName").style.color  = currentJutsu.color;
+  document.getElementById("progressBar").style.width = "0%";
+  seqList.innerHTML = "";
+  currentJutsu.seals.forEach((sealName, i) => {
+    const seal = SEALS.find(s => s.name === sealName);
+    const d = document.createElement("div");
+    d.className = "seq-item pending";
+    d.id = "seq-" + i;
+    d.innerHTML = `
+      <span class="seq-num">${i+1}</span>
+      <span class="seq-kanji">${seal.kanji}</span>
+      <div class="seq-info">
+        <span class="seq-name">${seal.name}　<span style="font-size:0.75rem;color:#7a6a4a">${seal.en}</span></span>
+        <span class="seq-hint">${seal.hint}</span>
+      </div>
+      <span class="seq-check">✓</span>`;
+    seqList.appendChild(d);
+  });
+  updateSequenceUI();
+}
+
+function updateSequenceUI() {
+  if (!currentJutsu) return;
+  currentJutsu.seals.forEach((_, i) => {
+    const el = document.getElementById("seq-" + i);
+    if (!el) return;
+    el.className = "seq-item " + (i < step ? "done" : i === step ? "current" : "pending");
+  });
+  document.getElementById("progressBar").style.width =
+    currentJutsu ? (step / currentJutsu.seals.length * 100) + "%" : "0%";
+
+  const panel = document.getElementById("currentSealPanel");
+  if (currentJutsu && step < currentJutsu.seals.length) {
+    const seal = SEALS.find(s => s.name === currentJutsu.seals[step]);
+    document.getElementById("panelImgWrap").innerHTML = seal.img
+      ? `<img src="${seal.img}" alt="${seal.name}" onerror="this.parentNode.innerHTML='<span class=no-img>暂无图片</span>'">`
+      : `<span class="no-img">暂无图片</span>`;
+    panel.classList.add("visible");
+  } else {
+    panel.classList.remove("visible");
+  }
+
+  const nextPanel = document.getElementById("nextSealsPanel");
+  nextPanel.innerHTML = "";
+  if (currentJutsu && step < currentJutsu.seals.length) {
+    for (let i = 2; i >= 1; i--) {
+      const nextIdx = step + i;
+      if (nextIdx < currentJutsu.seals.length) {
+        const nextSeal = SEALS.find(s => s.name === currentJutsu.seals[nextIdx]);
+        const card = document.createElement("div");
+        card.className = `next-seal-card ${i === 1 ? 'first' : 'second'}`;
+        card.innerHTML = `<div class="modal-img-wrap">${nextSeal.img
+          ? `<img src="${nextSeal.img}" alt="${nextSeal.name}" onerror="this.parentNode.innerHTML='<span class=no-img>暂无图片</span>'">`
+          : `<span class="no-img">暂无图片</span>`}</div>`;
+        nextPanel.appendChild(card);
+      }
+    }
+  }
+}
+
+// ═══════════════════════════════════════════
+//  WebSocket
+// ═══════════════════════════════════════════
+function init() {
+  const btn    = document.getElementById("startBtn");
+  const status = document.getElementById("statusMsg");
+  const canvas = document.getElementById("canvas");
+  btn.disabled = true; btn.textContent = "连接中...";
+  status.textContent = "正在连接后端...";
+  ws = new WebSocket(WS_URL);
+  ws.onopen = () => {
+    running = true;
+    canvas.style.display = "block";
+    btn.style.display    = "none";
+    status.textContent   = "识别中 — 请做出印术";
+    if (!currentJutsu) pickJutsu();
+    if (challengeMode) startChallengeTimer();
+    if (musicMode)     startMusicMode();
+  };
+  let renderPending = false;
+  const ctx = canvas.getContext("2d");
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.error) { status.textContent = data.error; return; }
+    if (!celebrating) handlePrediction(data.gesture, data.confidence);
+    if (!renderPending) {
+      renderPending = true;
+      requestAnimationFrame(() => {
+        const blob = new Blob(
+          [Uint8Array.from(atob(data.frame), c => c.charCodeAt(0))],
+          { type: "image/jpeg" }
+        );
+        createImageBitmap(blob).then(bitmap => {
+          ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+          bitmap.close(); renderPending = false;
+        });
+      });
+    }
+  };
+  ws.onerror  = () => { status.textContent = "连接失败：请先启动 server.py"; btn.disabled = false; btn.textContent = "重试"; running = false; };
+  ws.onclose  = () => { running = false; };
+  window.addEventListener("beforeunload", () => ws && ws.close());
+}
+
+// ═══════════════════════════════════════════
+//  识别逻辑 — routes to music handler if active
+// ═══════════════════════════════════════════
+function handlePrediction(gestureName, confidence) {
+  if (musicMode && musicPlaying) {
+    handleMusicGesture(gestureName, confidence);
+    // also update the detect box for feedback
+    const mapped = GESTURE_MAP[gestureName] || gestureName;
+    if (confidence >= THRESHOLD && gestureName) {
+      document.getElementById("currentGesture").textContent = mapped;
+      document.getElementById("confidence").textContent = (confidence*100).toFixed(0)+"%";
+    } else {
+      document.getElementById("currentGesture").textContent = "— 未检测 —";
+      document.getElementById("confidence").textContent = "";
+    }
+    return;
+  }
+
+  if (!currentJutsu || step >= currentJutsu.seals.length) return;
+  const mapped    = GESTURE_MAP[gestureName] || gestureName;
+  const gestureEl = document.getElementById("currentGesture");
+  const confEl    = document.getElementById("confidence");
+
+  if (confidence >= THRESHOLD && gestureName) {
+    gestureEl.textContent = mapped;
+    confEl.textContent    = (confidence*100).toFixed(0)+"%";
+    const needed = currentJutsu.seals[step];
+    if (mapped === needed) {
+      holdCount = (mapped === lastDetected) ? holdCount + 1 : 1;
+      lastDetected = mapped;
+      if (holdCount >= HOLD_FRAMES) { holdCount = 0; lastDetected = ""; onSealSuccess(); }
+    } else { holdCount = 0; lastDetected = ""; }
+  } else {
+    gestureEl.textContent = "— 未检测 —"; confEl.textContent = "";
+    holdCount = 0; lastDetected = "";
+  }
+}
+
+// ═══════════════════════════════════════════
+//  印成功 (practice / challenge)
+// ═══════════════════════════════════════════
+function onSealSuccess() {
+  const firstCard = document.querySelector('.next-seal-card.first');
+  const secondCard = document.querySelector('.next-seal-card.second');
+  if (firstCard) firstCard.classList.add('promote-first');
+  if (secondCard) secondCard.classList.add('promote-second');
+
+  const willFinish = step + 1 === currentJutsu.seals.length;
+  holdCount = 0;
+  lastDetected = '';
+  step++;
+  updateSequenceUI();
+
+  if (willFinish) {
+    stopChallengeTimer();
+    setTimeout(triggerJutsu, 700);
+  } else if (challengeMode) {
+    startChallengeTimer();
+  }
+}
+
+function spawnSealParticles() {
+  const panel = document.getElementById("currentSealPanel");
+  const rect  = panel.getBoundingClientRect();
+  spawnParticlesAt(rect.left + rect.width/2, rect.top + rect.height/2, "#ff9944");
+}
+
+function spawnRing() {
+  const canvas = document.getElementById("canvas");
+  const rect   = canvas.getBoundingClientRect();
+  const ring   = document.createElement("div");
+  ring.className  = "flash-ring";
+  ring.style.cssText = `left:${rect.left+rect.width/2}px;top:${rect.top+rect.height/2}px;width:80px;height:80px;`;
+  document.body.appendChild(ring);
+  setTimeout(() => ring.remove(), 500);
+}
+
+// ═══════════════════════════════════════════
+//  忍术释放特效
+// ═══════════════════════════════════════════
+function triggerJutsu() {
+  celebrating = true;
+  const overlay = document.getElementById('overlay');
+  const title   = document.getElementById('jutsuTitle');
+  const sub     = document.getElementById('jutsuSub');
+  title.textContent      = currentJutsu.name;
+  title.style.color      = currentJutsu.color;
+  title.style.textShadow = `0 0 40px ${currentJutsu.color}, 0 0 80px ${currentJutsu.color}88`;
+  sub.textContent        = '— 印術成功 —';
+  overlay.classList.add('show');
+  sendSerial('JUTSU:' + (JUTSUS.indexOf(currentJutsu) + 1));
+  startParticles(currentJutsu.color);
+  const jutsuIdx = JUTSUS.indexOf(currentJutsu) + 1;
+  playAudio(`audio/${jutsuIdx}.mp3`);
+
+  setTimeout(() => {
+    overlay.classList.remove('show');
+    stopParticles();
+    // Reset ALL state BEFORE celebrating = false
+    step        = 0;
+    holdCount   = 0;
+    lastDetected = '';
+    currentJutsu = JUTSUS[Math.floor(Math.random() * JUTSUS.length)];
+    celebrating = false;   // ← unlock LAST, after everything is ready
+    renderSequence();
+    if (challengeMode && running) startChallengeTimer();
+  }, 4000);
+}
+// ═══════════════════════════════════════════
+//  粒子系统
+// ═══════════════════════════════════════════
+let particles = [], animId = null;
+const pc   = document.getElementById("particleCanvas");
+const pctx = pc.getContext("2d");
+
+function spawnParticlesAt(cx, cy, color) {
+  if (pc.width === 0) { pc.width = window.innerWidth; pc.height = window.innerHeight; }
+  pc.classList.add("show");
+  for (let i = 0; i < 20; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1.5 + Math.random() * 4;
+    particles.push({ x:cx, y:cy, vx:Math.cos(angle)*speed, vy:Math.sin(angle)*speed-2,
+      life:1, decay:0.03+Math.random()*0.03, size:2+Math.random()*3, color });
+  }
+  if (!animId) animParticles();
+}
+
+function startParticles(color) {
+  pc.width = window.innerWidth; pc.height = window.innerHeight;
+  pc.classList.add("show"); particles = [];
+  for (let i = 0; i < 120; i++) {
+    const angle = Math.random()*Math.PI*2, speed = 2+Math.random()*6;
+    particles.push({ x:pc.width/2, y:pc.height/2, vx:Math.cos(angle)*speed, vy:Math.sin(angle)*speed-3,
+      life:1, decay:0.012+Math.random()*0.015, size:3+Math.random()*5, color });
+  }
+  animParticles();
+}
+
+function animParticles() {
+  pctx.clearRect(0, 0, pc.width, pc.height);
+  particles = particles.filter(p => p.life > 0);
+  particles.forEach(p => {
+    p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.life -= p.decay;
+    pctx.globalAlpha = p.life; pctx.fillStyle = p.color;
+    pctx.shadowBlur = 12; pctx.shadowColor = p.color;
+    pctx.beginPath(); pctx.arc(p.x, p.y, p.size*p.life, 0, Math.PI*2); pctx.fill();
+  });
+  pctx.globalAlpha = 1;
+  if (particles.length > 0) animId = requestAnimationFrame(animParticles);
+  else { animId = null; pc.classList.remove("show"); }
+}
+
+function stopParticles() {
+  cancelAnimationFrame(animId); animId = null;
+  pctx.clearRect(0, 0, pc.width, pc.height); pc.classList.remove("show");
+}
+
+// ═══════════════════════════════════════════
+//  串口
+// ═══════════════════════════════════════════
+let serialWriter = null;
+async function connectSerial() {
+  if (!navigator.serial) { alert("浏览器不支持 Web Serial API，请使用 Chrome 或 Edge"); return; }
+  try {
+    const port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 9600 });
+    serialWriter = port.writable.getWriter();
+    const btn = document.getElementById("serialBtn");
+    btn.textContent = "串口已连接"; btn.classList.add("connected"); btn.disabled = true;
+  } catch(e) { console.error("串口连接失败", e); }
+}
+async function sendSerial(msg) {
+  if (!serialWriter) return;
+  await serialWriter.write(new TextEncoder().encode(msg + "\n"));
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  音楽モード  —  完全修正版
+// ═══════════════════════════════════════════════════════════════
+
+// ── State ────────────────────────────────────────────────────────
+let musicPlaying       = false;
+let musicBPM           = 120;
+let musicBarMs         = 2000;
+let musicBarNum        = 0;
+let musicScore         = 0;
+let musicSuccessStreak = 0;   // consecutive successful jutsus
+
+let musicSealTimer     = null;
+let musicSealTotal     = 0;
+let musicSealRemaining = 0;
+let musicSealActive    = false;
+let musicSealHit       = false;
+let musicSealResults   = [];
+let musicRoundPending  = false;   // true while result overlay is visible
+
+let musicHoldCount     = 0;
+let musicLastDetected  = '';
+let musicRoundsPlayed = 0;
+const MUSIC_MAX_ROUNDS = 5;
+
+const SEAL_TICK_MS = 100;
+
+// ── DOM refs ──────────────────────────────────────────────────────
+const musicAudio         = document.getElementById('musicAudio');
+const musicHUDEl         = document.getElementById('musicHUD');
+const musicBarProgressEl = document.getElementById('musicBarProgress');
+const musicPhaseLabelEl  = document.getElementById('musicPhaseLabel');
+const musicBarNumEl      = document.getElementById('musicBarNum');
+const musicScoreEl       = document.getElementById('musicScore');
+const musicCDOverlay     = document.getElementById('musicCountdownOverlay');
+const musicCDNum         = document.getElementById('musicCountdownNum');
+const musicTimeoutFlash  = document.getElementById('musicTimeoutFlash');
+
+// ── Inject "miss" CSS once ────────────────────────────────────────
+(function injectMissStyle() {
+  if (document.getElementById('music-miss-style')) return;
+  const s = document.createElement('style');
+  s.id = 'music-miss-style';
+  s.textContent = `
+    .seq-item.miss { border-color: #aa222288; background: #150a0a; }
+    .seq-item.miss::before { background: #cc3333; }
+    .seq-item.miss .seq-check { opacity: 1; color: #cc3333; }
+  `;
+  document.head.appendChild(s);
+})();
+
+// ── Success audio helper ──────────────────────────────────────────
+function playAudio(file) {
+  try {
+    const a = new Audio(file);
+    a.volume = 1.0;
+    a.play().catch(() => {});
+  } catch(e) {}
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
+function parseBPM(path) {
+  const m = path.match(/(\d+)bpm/i);
+  return m ? parseInt(m[1], 10) : 120;
+}
+
+function updateBeatDots(activeBeat) {
+  for (let i = 0; i < 4; i++)
+    document.getElementById('beat' + i).classList.toggle('active', i === activeBeat);
+}
+
+function updateSealTimerUI() {
+  const pct     = (musicSealRemaining / musicSealTotal) * 100;
+  const elapsed = 1 - musicSealRemaining / musicSealTotal;
+  const beat    = Math.min(Math.floor(elapsed * 4), 3);
+  musicBarProgressEl.style.width      = pct + '%';
+  musicBarProgressEl.style.background = musicSealHit
+    ? 'linear-gradient(90deg, #44aa44, #aaffaa)' : '';
+  updateBeatDots(beat);
+}
+
+// ── Per-seal bar countdown ────────────────────────────────────────
+function startSealTimer() {
+  stopSealTimer();
+  musicSealTotal     = Math.round(musicBarMs / SEAL_TICK_MS);
+  musicSealRemaining = musicSealTotal;
+  musicSealActive    = true;
+  musicSealHit       = false;
+  musicHoldCount     = 0;
+  musicLastDetected  = '';
+  musicBarProgressEl.style.background = '';
+  updateSealTimerUI();
+
+  musicSealTimer = setInterval(() => {
+    if (musicRoundPending) return;   // pause ticks while overlay is up
+    musicSealRemaining--;
+    updateSealTimerUI();
+    if (musicSealRemaining <= 0) {
+      stopSealTimer();
+      onSealBarEnd();
+    }
+  }, SEAL_TICK_MS);
+}
+
+function stopSealTimer() {
+  clearInterval(musicSealTimer);
+  musicSealTimer  = null;
+  musicSealActive = false;
+}
+
+// ── Called when one bar's countdown reaches zero ──────────────────
+function onSealBarEnd() {
+  if (!musicPlaying)     return;
+  if (musicRoundPending) return;   // safety guard
+
+  musicSealResults.push(musicSealHit);
+
+  // Update completed seq-item class — try/catch so a null element never freezes
+  try {
+    const el = document.getElementById('seq-' + step);
+    if (el) {
+      if (musicSealHit) {
+        el.className = 'seq-item done';
+      } else {
+        el.className = 'seq-item miss';
+        const chk = el.querySelector('.seq-check');
+        if (chk) chk.textContent = '✗';
+        musicTimeoutFlash.classList.remove('flash');
+        void musicTimeoutFlash.offsetWidth;
+        musicTimeoutFlash.classList.add('flash');
+      }
+    }
+  } catch (e) { console.error('seq-item update err', e); }
+
+  step++;
+
+  // Update progress bar + center panel — also guarded
+  try {
+    if (currentJutsu)
+      document.getElementById('progressBar').style.width =
+        (step / currentJutsu.seals.length * 100) + '%';
+
+    const panel     = document.getElementById('currentSealPanel');
+    const nextPanel = document.getElementById('nextSealsPanel');
+
+    if (currentJutsu && step < currentJutsu.seals.length) {
+      const seal = SEALS.find(s => s.name === currentJutsu.seals[step]);
+      document.getElementById('panelImgWrap').innerHTML = seal && seal.img
+        ? `<img src="${seal.img}" alt="${seal.name}" onerror="this.parentNode.innerHTML='<span class=no-img>暂无图片</span>'">`
+        : `<span class="no-img">暂无图片</span>`;
+      panel.classList.add('visible');
+
+      nextPanel.innerHTML = '';
+      for (let i = 2; i >= 1; i--) {
+        const ni = step + i;
+        if (ni < currentJutsu.seals.length) {
+          const ns = SEALS.find(s => s.name === currentJutsu.seals[ni]);
+          const card = document.createElement('div');
+          card.className = `next-seal-card ${i === 1 ? 'first' : 'second'}`;
+          card.innerHTML = `<div class="modal-img-wrap">${ns && ns.img
+            ? `<img src="${ns.img}" alt="${ns.name}" onerror="this.parentNode.innerHTML='<span class=no-img>暂无图片</span>'">`
+            : `<span class="no-img">暂无图片</span>`}</div>`;
+          nextPanel.appendChild(card);
+        }
+      }
+    } else {
+      panel.classList.remove('visible');
+      nextPanel.innerHTML = '';
+    }
+  } catch (e) { console.error('panel update err', e); }
+
+  musicBarNum++;
+  musicBarNumEl.textContent      = musicBarNum;
+  musicBarProgressEl.style.width = '0%';
+  musicBarProgressEl.style.background = '';
+  updateBeatDots(-1);
+
+  const totalSeals = currentJutsu ? currentJutsu.seals.length : 5;
+
+  if (step >= totalSeals) {
+    stopSealTimer();
+    musicRoundPending = true;   // lock out new ticks
+    celebrating       = true;   // also block ws gesture processing immediately
+    setTimeout(() => {
+      try { onJutsuRoundEnd(); }
+      catch (e) {
+        console.error('onJutsuRoundEnd failed', e);
+        // emergency fallback: never stay frozen
+        const overlay = document.getElementById('overlay');
+        const title   = document.getElementById('jutsuTitle');
+        const sub     = document.getElementById('jutsuSub');
+        title.textContent = currentJutsu ? currentJutsu.name : '忍术';
+        title.style.color = '#ffcc44';
+        title.style.textShadow = '0 0 40px #ffcc44, 0 0 80px #ffaa0088';
+        sub.textContent = `— 结果 ${musicSealResults.filter(Boolean).length} / ${totalSeals} —`;
+        overlay.classList.add('show');
+        setTimeout(startNextMusicRound, 2500);
+      }
+    }, 120);
+  } else {
+    musicPhaseLabelEl.textContent = `印　${step + 1} / ${totalSeals}`;
+    setTimeout(startSealTimer, 150);
+  }
+}
+
+// ── Show result overlay, then unconditionally start next round ────
+function onJutsuRoundEnd() {
+  // Always show the result overlay, even if audio ended at the same moment.
+  const correct = musicSealResults.filter(Boolean).length;
+  const total   = musicSealResults.length || (currentJutsu ? currentJutsu.seals.length : 5);
+  const allGood = correct >= total - 1;
+  musicRoundsPlayed++;
+  musicScore += correct;
+  musicScoreEl.textContent = musicScore;
+  celebrating = true;   // block ws gesture processing
+
+  const overlay = document.getElementById('overlay');
+  const title   = document.getElementById('jutsuTitle');
+  const sub     = document.getElementById('jutsuSub');
+
+  title.textContent = currentJutsu.name;
+
+  if (allGood) {
+    musicSuccessStreak++;
+
+    title.style.color      = currentJutsu.color;
+    title.style.textShadow = `0 0 40px ${currentJutsu.color}, 0 0 80px ${currentJutsu.color}88`;
+    sub.textContent = correct === total
+      ? `— 完美！印术全部成功 ${correct} / ${total} —`
+      : `— 印术成功 ${correct} / ${total} —`;
+
+    sendSerial('JUTSU:' + (JUTSUS.indexOf(currentJutsu) + 1));
+    startParticles(currentJutsu.color);
+
+    const jutsuIdx = JUTSUS.indexOf(currentJutsu) + 1;
+    playAudio(`audio/${jutsuIdx}.mp3`);
+
+    if (musicSuccessStreak === 2) {
+      setTimeout(() => playAudio('audio/6.mp3'), 800);
+    } else if (musicSuccessStreak >= 3) {
+      setTimeout(() => playAudio('audio/7.mp3'), 800);
+    }
+
+  } else {
+    musicSuccessStreak = 0;
+
+    title.style.color      = '#ffcc44';
+    title.style.textShadow = '0 0 40px #ffcc44, 0 0 80px #ffaa0088';
+    sub.textContent = `— 印术结果　${correct} / ${total} —`;
+    if (correct > 0)
+      spawnParticlesAt(window.innerWidth / 2, window.innerHeight / 2, '#ffcc44');
+  }
+  overlay.classList.add('show');
+
+  if (musicRoundsPlayed >= MUSIC_MAX_ROUNDS) {
+    setTimeout(showMusicGameOver, 2500);
+  } else {
+    setTimeout(startNextMusicRound, 2500);
+  }
+}
+
+// ── Shared per-jutsu initialiser (called for round 1 AND all subsequent rounds) ──
+function beginJutsuRound() {
+  if (musicRoundsPlayed >= MUSIC_MAX_ROUNDS) {
+    showMusicGameOver();
+    return;
+  }
+
+  stopSealTimer();
+  musicSealResults = [];
+  musicRoundPending = false;
+  celebrating = false;
+  musicSealHit = false;
+  musicHoldCount = 0;
+  musicLastDetected = '';
+  currentJutsu = JUTSUS[Math.floor(Math.random() * JUTSUS.length)];
+  step = 0;
+  holdCount = 0;
+  lastDetected = '';
+  renderSequence();
+  musicBarProgressEl.style.width = '0%';
+  musicBarProgressEl.style.background = '';
+  updateBeatDots(-1);
+  musicPhaseLabelEl.textContent = `1 / ${currentJutsu.seals.length}`;
+  startSealTimer();
+}
+// ── Always recover and start the next jutsu ───────────────────────
+function startNextMusicRound() {
+  document.getElementById('overlay').classList.remove('show');
+  stopParticles();
+
+  if (!musicPlaying) return;
+  if (musicRoundsPlayed >= MUSIC_MAX_ROUNDS) {
+    showMusicGameOver();
+    return;
+  }
+
+  beginJutsuRound();
+}
+function showMusicGameOver() {
+  musicPlaying = false;
+  musicSealActive = false;
+  musicRoundPending = true;
+  celebrating = true;
+  stopSealTimer();
+  musicAudio.pause();
+
+  const overlay = document.getElementById('overlay');
+  const title = document.getElementById('jutsuTitle');
+  const sub = document.getElementById('jutsuSub');
+
+  title.textContent = '音樂模式結束';
+  title.style.color = '#ffcc44';
+  title.style.textShadow = '0 0 40px #ffcc44, 0 0 80px #ffaa0088';
+
+  sub.innerHTML = `
+    得分：${musicScore}<br>
+    完成：${Math.min(musicRoundsPlayed, MUSIC_MAX_ROUNDS)} / ${MUSIC_MAX_ROUNDS}<br><br>
+    <button class="mode-btn active" onclick="document.getElementById('overlay').classList.remove('show'); startMusicMode();">再試一次</button>
+    <button class="mode-btn" onclick="document.getElementById('overlay').classList.remove('show');">選歌</button>
+    <button class="mode-btn" onclick="document.getElementById('overlay').classList.remove('show'); stopMusicMode(); setMode('practice');">去練習</button>
+    <button class="mode-btn" onclick="document.getElementById('overlay').classList.remove('show'); stopMusicMode(); setMode('challenge');">去挑戰</button>
+  `;
+
+  overlay.classList.add('show');
+}
+// ── Gesture detection ─────────────────────────────────────────────
+function handleMusicGesture(gestureName, confidence) {
+  if (!musicPlaying)     return;
+  if (!musicSealActive)  return;
+  if (musicSealHit)      return;
+  if (musicRoundPending) return;
+  if (!currentJutsu || step >= currentJutsu.seals.length) return;
+
+  if (confidence < THRESHOLD || !gestureName) {
+    musicHoldCount    = 0;
+    musicLastDetected = '';
+    return;
+  }
+
+  const mapped = GESTURE_MAP[gestureName] || gestureName;
+  const needed = currentJutsu.seals[step];
+
+  if (mapped === needed) {
+    musicHoldCount = (mapped === musicLastDetected) ? musicHoldCount + 1 : 1;
+    musicLastDetected = mapped;
+    if (musicHoldCount >= HOLD_FRAMES) {
+      musicHoldCount    = 0;
+      musicLastDetected = '';
+      musicSealHit      = true;
+      spawnRing();
+      spawnSealParticles();
+      try {
+        const el = document.getElementById('seq-' + step);
+        if (el) el.className = 'seq-item done';
+      } catch (e) {}
+    }
+  } else {
+    musicHoldCount    = 0;
+    musicLastDetected = '';
+  }
+}
+
+// ── Start music mode ──────────────────────────────────────────────
+function startMusicMode() {
+  if (musicPlaying) return;
+  musicRoundsPlayed = 0;
+  stopSealTimer();
+  updateBeatDots(-1);
+
+  const selectedSong = MUSICFILES[selectedSongIndex];
+  musicBPM = selectedSong.bpm;
+  musicBarMs = (60 / musicBPM) * 4 * 1000;
+  musicScore         = 0;
+  musicSuccessStreak = 0;
+  musicBarNum        = 0;
+  musicSealActive    = false;
+  musicSealHit       = false;
+  musicSealResults   = [];
+  musicRoundPending  = false;
+  musicHoldCount     = 0;
+  musicLastDetected  = '';
+  celebrating        = false;
+
+  musicScoreEl.textContent       = '0';
+  musicBarNumEl.textContent      = '0';
+  musicPhaseLabelEl.textContent  = '— 准备 —';
+  musicBarProgressEl.style.width = '0%';
+  musicBarProgressEl.style.background = '';
+
+  musicAudio.src = selectedSong.file;;
+  musicAudio.load();
+
+  musicHUDEl.classList.add('show');
+  musicTimeoutFlash.classList.remove('flash');
+
+  const ro = document.getElementById('musicRestOverlay');
+  if (ro) ro.classList.remove('show');
+
+  runCountdown(3, () => {
+    musicAudio.volume = 0.1;   // ← 0.0 (silent) to 1.0 (full), adjust to taste
+    musicAudio.play().catch(() => {});
+    musicPlaying = true;
+    beginJutsuRound();   // same function used for every subsequent jutsu
+  });
+}
+
+// ── Stop music mode ───────────────────────────────────────────────
+function stopMusicMode() {
+  musicPlaying = false;
+  musicMode = false;
+  musicSealActive = false;
+  musicSealHit = false;
+  musicSealResults = [];
+  musicRoundPending = false;
+  musicHoldCount = 0;
+  musicLastDetected = '';
+  musicRoundsPlayed = 0;
+  celebrating = false;
+
+  stopSealTimer();
+  musicAudio.pause();
+  musicAudio.currentTime = 0;
+
+  musicHUDEl.classList.remove('show');
+  musicCDOverlay.classList.remove('show');
+  musicTimeoutFlash.classList.remove('flash');
+
+  const ro = document.getElementById('musicRestOverlay');
+  if (ro) ro.classList.remove('show');
+
+  document.getElementById('overlay').classList.remove('show');
+  stopParticles();
+
+  musicBarProgressEl.style.width = '0%';
+  musicBarProgressEl.style.background = '';
+  musicPhaseLabelEl.textContent = '';
+
+  step = 0;
+  holdCount = 0;
+  lastDetected = '';
+  document.getElementById('currentGesture').textContent = '';
+  document.getElementById('confidence').textContent = '';
+
+  pickJutsu();
+}
+function runCountdown(n, cb) {
+  musicCDOverlay.classList.add('show');
+  if (n === 0) { musicCDOverlay.classList.remove('show'); cb(); return; }
+  musicCDNum.textContent     = n;
+  musicCDNum.style.animation = 'none';
+  void musicCDNum.offsetWidth;
+  musicCDNum.style.animation = 'count-pop 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+  setTimeout(() => runCountdown(n - 1, cb), 900);
+}
+
+musicAudio.addEventListener('ended', () => {
+  if (!musicMode) return;
+  musicPlaying    = false;
+  musicSealActive = false;
+  stopSealTimer();
+  updateBeatDots(-1);
+  musicBarProgressEl.style.background = '';
+  if (!musicRoundPending && !celebrating)
+    musicPhaseLabelEl.textContent = '— 演奏结束 —';
+});
+
+// ═══════════════════════════════════════════
+//  图鉴弹窗
+// ═══════════════════════════════════════════
+function closeSealModal() { document.getElementById('sealModal').classList.remove('show'); }
+
+// ═══════════════════════════════════════════
+//  初始化
+// ═══════════════════════════════════════════
+pickJutsu();
+
+document.addEventListener("keydown", e => {
+  if (e.code !== "Space" || celebrating) return;
+  e.preventDefault();
+  if (!currentJutsu) return;
+  step = currentJutsu.seals.length;
+  updateSequenceUI();
+  triggerJutsu();
+});
+updateSongButtons();
+</script>
+</body>
+</html>

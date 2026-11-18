@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+<title>忍术印术 · Project Shinobi</title>
+<meta name="description" content="Make Naruto-style hand seals in front of your camera. Recognition runs in your browser.">
+<style>
+html, body, #canvas { margin: 0; padding: 0; border: 0; }
+body { background: #07070b; color: #e8d5a3; overflow: hidden; touch-action: none; }
+#canvas { display: block; width: 100vw; height: 100vh; }
+#canvas:focus { outline: none; }
+#status {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 18px;
+  background: #07070b; font-family: Georgia, 'Songti SC', serif; z-index: 10;
+}
+#status h1 { margin: 0; color: #ff6b00; letter-spacing: .4em; font-size: 34px; text-shadow: 0 0 20px rgba(255,107,0,.5); }
+#status p { margin: 0; color: #7a6a4a; font-size: 14px; letter-spacing: .1em; }
+#bar { width: min(420px, 70vw); height: 6px; background: #1a1208; border: 1px solid #3a2a1a; border-radius: 3px; overflow: hidden; }
+#fill { height: 100%; width: 0; background: #ff6b00; transition: width .2s; }
+#notice { display: none; max-width: 520px; margin: 0 16px; padding: 16px; border: 1px solid #9b3943; background: #3b1923; border-radius: 6px; text-align: center; line-height: 1.5; font-family: sans-serif; }
+</style>
+<script>
+// Cloudflare Pages refuses files over 25 MiB, so the engine wasm ships
+// gzipped. Unpack it here when Godot asks for index.wasm.
+(function () {
+  const realFetch = window.fetch.bind(window);
+  window.fetch = function (input, init) {
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    if (/(^|\/)index\.wasm(\?|$)/.test(url)) {
+      return realFetch(url.replace('index.wasm', 'index.wasm.gz'), init).then((res) => {
+        if (!res.ok) return res;
+        const body = res.body.pipeThrough(new DecompressionStream('gzip'));
+        return new Response(body, { status: 200, headers: { 'Content-Type': 'application/wasm' } });
+      });
+    }
+    return realFetch(input, init);
+  };
+}());
+</script>
+<script type="module" src="vision/vision.js"></script>
+$GODOT_HEAD_INCLUDE
+</head>
+<body>
+<canvas id="canvas">Your browser does not support the canvas tag.</canvas>
+<noscript>Please turn on JavaScript to play.</noscript>
+<div id="status">
+  <h1>忍術印術</h1>
+  <p>PROJECT SHINOBI</p>
+  <div id="bar"><div id="fill"></div></div>
+  <p id="msg">载入中 · Loading…</p>
+  <div id="notice"></div>
+</div>
+<script src="$GODOT_URL"></script>
+<script>
+const GODOT_CONFIG = $GODOT_CONFIG;
+const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
+const engine = new Engine(GODOT_CONFIG);
+(function () {
+  const status = document.getElementById('status');
+  const fill = document.getElementById('fill');
+  const notice = document.getElementById('notice');
+  function fail(err) {
+    console.error(err);
+    notice.textContent = (err && err.message) || String(err);
+    notice.style.display = 'block';
+  }
+  if (!('DecompressionStream' in window)) {
+    fail('请使用最新版 Chrome、Edge、Safari 或 Firefox。\nPlease use a current Chrome, Edge, Safari or Firefox.');
+    return;
+  }
+  const missing = Engine.getMissingFeatures({ threads: GODOT_THREADS_ENABLED });
+  if (missing.length) {
+    fail('This browser is missing: ' + missing.join(', '));
+    return;
+  }
+  engine.startGame({
+    onProgress(current, total) {
+      if (total > 0) fill.style.width = Math.min(100, current / total * 100) + '%';
+    },
+  }).then(() => status.remove(), fail);
+}());
+</script>
+</body>
+</html>

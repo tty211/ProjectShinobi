@@ -42,6 +42,10 @@ npx wrangler pages deploy web/dist --project-name jutsu-prototype --branch main
 `dist/_headers` turns the camera on (`Permissions-Policy: camera=(self)`) and
 sets the cross-origin isolation headers ONNX Runtime needs for threads.
 
+## Game flow
+
+Start page (web-version notice: GPU recommended, slower without one) → connect camera → menu with 练习 / 挑战 / 音乐 → game. The ‹ 菜单 button goes back to the menu.
+
 ## Game rules (same as ninjutsu-v10.html)
 
 - A seal counts when the model is at least 40 % sure for 2 checks in a row.

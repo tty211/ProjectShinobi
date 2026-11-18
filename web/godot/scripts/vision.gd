@@ -10,6 +10,7 @@ var phase := "idle"
 var progress := 0.0
 var error := ""
 var ms := 0
+var backend := ""
 
 var _js: JavaScriptObject
 var _last_seq := 0
@@ -32,6 +33,7 @@ func _process(_delta: float) -> void:
 	progress = float(st.progress)
 	error = str(st.error)
 	ms = int(st.ms)
+	backend = str(st.backend)
 	var seq := int(st.seq)
 	if seq != _last_seq:
 		_last_seq = seq

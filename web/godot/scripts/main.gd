@@ -62,6 +62,15 @@ var music_player: AudioStreamPlayer
 var title_lbl: Label
 var subtitle_lbl: Label
 var lang_btn: Button
+var menu_btn: Button
+var start_screen: Control
+var start_notice: Label
+var connect_btn: Button
+var start_status: Label
+var menu_screen: Control
+var menu_heading: Label
+var menu_speed: Label
+var menu_cards := {}
 var mode_box: HBoxContainer
 var mode_btns := {}
 var song_box: HBoxContainer
@@ -458,6 +467,129 @@ func _build_ui() -> void:
 	modal.add_child(mc)
 	add_child(modal)
 
+	menu_btn = _button(_show_menu, 16)
+	add_child(menu_btn)
+	_build_start_screen()
+	_build_menu_screen()
+	move_child(lang_btn, -1)
+
+
+## Full-screen page with the background picture; returns the centred column.
+func _screen() -> Array:
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var bg := TextureRect.new()
+	bg.texture = load("res://assets/background.jpg")
+	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(bg)
+	var shade := ColorRect.new()
+	shade.color = Color(0.02, 0.02, 0.04, 0.72)
+	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(shade)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(center)
+	var col := VBoxContainer.new()
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
+	col.add_theme_constant_override("separation", 22)
+	center.add_child(col)
+	var title := _label(64, ORANGE, true)
+	_glow(title, ORANGE, 12)
+	title.set_meta("key", "title")
+	col.add_child(title)
+	var sub := _label(16, DIM)
+	sub.set_meta("key", "subtitle")
+	col.add_child(sub)
+	add_child(root)
+	return [root, col]
+
+
+func _build_start_screen() -> void:
+	var r := _screen()
+	start_screen = r[0]
+	var col: VBoxContainer = r[1]
+	var box := PanelContainer.new()
+	var sb := _style(Color(0.08, 0.05, 0.02, 0.9), Color(ORANGE, 0.6), 1, 8)
+	sb.content_margin_left = 28
+	sb.content_margin_right = 28
+	sb.content_margin_top = 20
+	sb.content_margin_bottom = 20
+	box.add_theme_stylebox_override("panel", sb)
+	box.custom_minimum_size = Vector2(720, 0)
+	box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	start_notice = _label(18, GOLD, false, HORIZONTAL_ALIGNMENT_LEFT)
+	start_notice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	start_notice.add_theme_constant_override("line_spacing", 8)
+	box.add_child(start_notice)
+	col.add_child(box)
+	connect_btn = _button(_on_start, 24)
+	connect_btn.custom_minimum_size = Vector2(360, 60)
+	connect_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	connect_btn.add_theme_stylebox_override("normal", _style(Color("#cc4400"), Color("#ff6b00"), 1))
+	connect_btn.add_theme_color_override("font_color", Color.WHITE)
+	col.add_child(connect_btn)
+	start_status = _label(16, Color("#a89470"))
+	start_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	start_status.custom_minimum_size = Vector2(720, 0)
+	col.add_child(start_status)
+
+
+func _build_menu_screen() -> void:
+	var r := _screen()
+	menu_screen = r[0]
+	menu_screen.visible = false
+	var col: VBoxContainer = r[1]
+	menu_heading = _label(22, GOLD, true)
+	col.add_child(menu_heading)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 28)
+	for m in ["practice", "challenge", "music"]:
+		var b := _button(_choose_mode.bind(m), 18)
+		b.custom_minimum_size = Vector2(330, 230)
+		var v := VBoxContainer.new()
+		v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 20)
+		v.alignment = BoxContainer.ALIGNMENT_CENTER
+		v.add_theme_constant_override("separation", 18)
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var name := _label(40, ORANGE, true)
+		_glow(name, ORANGE, 8)
+		var desc := _label(16, GOLD)
+		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		desc.custom_minimum_size = Vector2(290, 0)
+		v.add_child(name)
+		v.add_child(desc)
+		b.add_child(v)
+		menu_cards[m] = {"name": name, "desc": desc}
+		row.add_child(b)
+	col.add_child(row)
+	menu_speed = _label(15, DIM)
+	menu_speed.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	menu_speed.custom_minimum_size = Vector2(720, 0)
+	col.add_child(menu_speed)
+
+
+func _show_menu() -> void:
+	gen += 1
+	ch_active = false
+	if mode == "music":
+		stop_music()
+	celebrating = false
+	resetting = false
+	overlay.visible = false
+	modal.visible = false
+	countdown_lbl.visible = false
+	_stop_jutsu_particles()
+	start_screen.visible = false
+	menu_screen.visible = true
+
+
+func _choose_mode(m: String) -> void:
+	menu_screen.visible = false
+	set_mode(m)
+
 
 func _bar(min_size: Vector2, color: Color) -> ProgressBar:
 	var p := ProgressBar.new()
@@ -539,6 +671,8 @@ func _layout() -> void:
 	title_lbl.position = Vector2((vs.x - title_lbl.size.x) / 2, 14)
 	subtitle_lbl.position = Vector2((vs.x - subtitle_lbl.size.x) / 2, 76)
 	lang_btn.position = Vector2(vs.x - lang_btn.size.x - 24, 20)
+	menu_btn.reset_size()
+	menu_btn.position = Vector2(24, 20)
 	mode_box.position = Vector2((vs.x - mode_box.size.x) / 2, 104)
 	song_box.position = Vector2((vs.x - song_box.size.x) / 2, 160)
 	timer_box.position = Vector2((vs.x - timer_box.size.x) / 2, 162)
@@ -567,6 +701,17 @@ func _apply_lang() -> void:
 	title_lbl.text = t("title")
 	subtitle_lbl.text = t("subtitle")
 	lang_btn.text = t("lang")
+	menu_btn.text = "‹ " + t("menu")
+	for scr in [start_screen, menu_screen]:
+		for n in scr.find_children("*", "Label", true, false):
+			if n.has_meta("key"):
+				n.text = t(n.get_meta("key"))
+	start_notice.text = t("web_notice")
+	connect_btn.text = t("connect_debug") if debug else (t("retry") if vision.phase == "error" else t("connect"))
+	menu_heading.text = t("choose_mode")
+	for m in menu_cards:
+		menu_cards[m].name.text = t(m)
+		menu_cards[m].desc.text = t("desc_" + m)
 	for m in mode_btns:
 		mode_btns[m].text = t(m)
 	timer_lbl.text = t("timer")
@@ -593,7 +738,7 @@ func _update_hud_labels() -> void:
 
 func _process(delta: float) -> void:
 	_update_status()
-	var cam_visible := running and not debug and not overlay.visible and not modal.visible and not countdown_lbl.visible
+	var cam_visible := running and not debug and not start_screen.visible and not menu_screen.visible and not overlay.visible and not modal.visible and not countdown_lbl.visible
 	vision.set_cam_rect(cam_frame.get_global_rect().grow(-2), get_viewport_rect().size, cam_visible)
 
 	if ch_active and not celebrating:
@@ -618,10 +763,13 @@ func _process(delta: float) -> void:
 func _update_status() -> void:
 	if debug:
 		status_lbl.text = t("st_debug")
+		start_status.text = status_lbl.text
+		menu_speed.text = status_lbl.text
 		cam_hint.text = ""
 		return
 	if not vision.available:
 		status_lbl.text = t("st_web_only")
+		start_status.text = status_lbl.text
 		return
 	match vision.phase:
 		"idle":
@@ -636,10 +784,14 @@ func _update_status() -> void:
 				_on_vision_ready()
 		"error":
 			status_lbl.text = t("err_" + vision.error) if Data.TEXT.has("err_" + vision.error) else t("err_load-failed")
-			if start_btn.disabled:
-				start_btn.disabled = false
-				start_btn.text = t("retry")
+			if connect_btn.disabled:
+				connect_btn.disabled = false
+				connect_btn.text = t("retry")
 	cam_hint.text = "" if running else "◉"
+	start_status.text = status_lbl.text
+	if menu_screen.visible:
+		var key := "speed_gpu" if vision.backend == "webgpu" else "speed_cpu"
+		menu_speed.text = t(key) % vision.ms if vision.ms > 0 else ""
 
 
 func _on_start() -> void:
@@ -648,7 +800,7 @@ func _on_start() -> void:
 		return
 	if not vision.available:
 		return
-	start_btn.disabled = true
+	connect_btn.disabled = true
 	vision.start()
 
 
@@ -656,14 +808,11 @@ func _on_vision_ready() -> void:
 	running = true
 	start_btn.visible = false
 	_layout()
-	if mode == "challenge":
-		_start_challenge_timer()
-	elif mode == "music":
-		start_music()
+	_show_menu()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not debug or not (event is InputEventKey) or not event.pressed or event.echo:
+	if not debug or menu_screen.visible or start_screen.visible or not (event is InputEventKey) or not event.pressed or event.echo:
 		return
 	var keys := [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0, KEY_MINUS, KEY_EQUAL]
 	var i := keys.find(event.keycode)

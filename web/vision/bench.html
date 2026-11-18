@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Shinobi vision bench</title>
+<style>body{font:14px monospace;background:#111;color:#ddd;padding:16px}</style>
+</head>
+<body>
+<p>Speed + parity check for the seal models. Add images with ?img=a.jpg&amp;img=b.jpg (relative to this page).</p>
+<pre id="out">loading…</pre>
+<script type="module">
+import './vision.js';
+const out = document.getElementById('out');
+const log = (s) => { out.textContent += '\n' + s; };
+const imgs = new URLSearchParams(location.search).getAll('img');
+const runs = Number(new URLSearchParams(location.search).get('runs') || 5);
+const result = { images: {} };
+window.benchResult = result;
+try {
+  const t0 = performance.now();
+  await window.shinobiVision.loadModels();
+  result.loadMs = Math.round(performance.now() - t0);
+  result.backend = window.shinobiVision.state.backend;
+  result.isolated = self.crossOriginIsolated;
+  out.textContent = `backend ${result.backend}, isolated ${result.isolated}, load ${result.loadMs} ms`;
+  for (const src of imgs) {
+    const img = new Image();
+    img.src = src;
+    await img.decode();
+    const times = [];
+    let r;
+    for (let i = 0; i < runs; i++) {
+      r = await window.shinobiVision.checkImage(img, true);
+      times.push(r.ms);
+    }
+    times.sort((a, b) => a - b);
+    result.images[src] = { hand: +r.hand.toFixed(3), gesture: r.gesture, conf: +r.conf.toFixed(3), medianMs: Math.round(times[times.length >> 1]) };
+    log(`${src}: ${JSON.stringify(result.images[src])}`);
+  }
+  result.done = true;
+} catch (err) {
+  result.error = String(err);
+  log('ERROR ' + err);
+}
+</script>
+</body>
+</html>
